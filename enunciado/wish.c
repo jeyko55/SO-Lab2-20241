@@ -14,22 +14,22 @@
 char *paths[100]={"/bin/","/usr/bin/", NULL};
 int cantPaths = 3;
 char *tokens[100];
-int indice = 0 ; // for the number of tokens 
+int indice = 0 ; // Para el número de tokens
 int hijos[100];
 int cantHijos = 0 ;
 
-void obtenerTokens(FILE *); //accepts a file as an input and converts it into separated commands stored in tokens 
-void ejecutarComando(); // executes the next command in tokens 
-int comandoTieneRedireccion(char *arr[] , int start); // check if the command has redirection '>' 
-void error(); // print the error msg in stderr 
+void obtenerTokens(FILE *); // Acepta un archivo como un input y lo convierte en comandos separados alojados en tokens 
+void ejecutarComando(); // Ejecuta el sigueinte comando en tokens 
+int comandoTieneRedireccion(char *arr[] , int start); // Verifica si el comando tiene redirección '>'
+void error(); // Imprime el mensaje de error en stderr 
 
 int main (int argc, char *argv[]) {
-	if(argc == 1) { //interactive mode
-		obtenerTokens(stdin); // the input file here is the stdin (the commands that user types)
+	if(argc == 1) { // Modo interactivo
+		obtenerTokens(stdin); // Obtiene los tokens del comando que el usuario digita en stdin
 	}
-	else if (argc == 2) { //batch mode
-		FILE *input = fopen(argv[1],"r"); // the file that the shell was executed with 
-		if(input != NULL) {// check if the file cannot be opened
+	else if (argc == 2) { // Modo batch
+		FILE *input = fopen(argv[1],"r"); // Abre el archivo que se ejecutó por terminal 
+		if(input != NULL) {// Verifica si el archivo no puede ser abierto
 			obtenerTokens(input);
 		}
 		else {
@@ -37,28 +37,28 @@ int main (int argc, char *argv[]) {
 			exit(FINAL_ERRONEO);
 		}
 	}
-	else { //throw an error 
+	else { // Si es error
     error();	
     exit(FINAL_ERRONEO);
 	}
 	return 0;
-} // end of main 
+} // Final del main()
 
 void obtenerTokens(FILE* input) {
-	while(1) { //the shell must be waitting for an input 
-		if(input == stdin) // interactive mode
-			printf("wish> "); //the shell prompt
+	while(1) { // Para esperar por un input en el terminal 
+		if(input == stdin) // Modo interactivo
+			printf("wish> "); // Imprime el promt del terminal
 		int temp = indice;
 		indice =0 ;
 		char *original;
 		size_t len = 0 ;
-		if(getline(&original,&len,input)==EOF) {  // reda utill end of file 
+		if(getline(&original,&len,input)==EOF) {  
 			exit(FINAL_EXITOSO);
 		}
 		unsigned long long original_size = strlen(original); 
 		char *modified = (char *)malloc(sizeof(char)*original_size*6);
 		int shift  =0;
-		if(!(strcmp(original,"&\n"))) { //skip this input
+		if(!(strcmp(original,"&\n"))) { // Se salta el '\n'
 			continue;
 		}
 		for(int i = 0 ; i<original_size ; i++ ) {
