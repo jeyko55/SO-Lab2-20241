@@ -10,8 +10,8 @@
 #define FAILURE_END 1
 #define MAX_PATH 4096
 
-char *paths[100]= {"/bin/","/usr/bin/", NULL};
-int nOfPathes = 3;
+char *paths[100]= {"/bin/","/usr/bin/"};
+int nOfPathes = 2;
 char * arrayOfTokens[100];
 int indx =0 ; // for the number of tokens 
 int childsPid[100];
