@@ -1,3 +1,4 @@
+// Imports
 #include <signal.h>
 #include <stdio.h>
 #include <string.h>
@@ -5,60 +6,44 @@
 #include <unistd.h>
 #include <stdlib.h>
 #include <fcntl.h>
-#include <sys/stat.h> // Para usar las funciones stat() y S_IXUSR en ejecutarComando()
 
-#define FINAL_EXITOSO 0
-#define FINAL_ERRONEO 1
+// Declaring constants
+#define SUCCESSFUL_END 0
+#define FAILURE_END 1
 #define MAX_PATH 4096
 
-char *paths[100]={"/bin/","/usr/bin/", NULL};
-int cantPaths = 3;
-char *tokens[100];
-int indice = 0 ; // Para el número de tokens
-int hijos[100];
-int cantHijos = 0 ;
+// Declaring global variables
+char *paths[100] = {"/bin/","/usr/bin/"};
+int countPaths = 2;
+char * tokens[100];
+int indx = 0 ; // for the number of tokens 
+int childs[100];
+int countChilds = 0;
+ 
+// Declaring functions
+void getTokens(FILE *); //accepts a file as an input and converts it into separated commands stored in tokens 
+void executeCommand(); // executes the next command in tokens 
+int commandHasRedirection(char *arr[] , int start); // check if the command has redirection '>' 
+void error(); // print the error msg in stderr
+int isValidPath(const char *path); // Verifica si una ruta es válida 
 
-void obtenerTokens(FILE *); // Acepta un archivo como un input y lo convierte en comandos separados alojados en tokens 
-void ejecutarComando(); // Ejecuta el sigueinte comando en tokens 
-int comandoTieneRedireccion(char *arr[] , int start); // Verifica si el comando tiene redirección '>'
-void error(); // Imprime el mensaje de error en stderr 
-
-int main (int argc, char *argv[]) {
-	if(argc == 1) { // Modo interactivo
-		obtenerTokens(stdin); // Obtiene los tokens del comando que el usuario digita en stdin
-	}
-	else if (argc == 2) { // Modo batch
-		FILE *input = fopen(argv[1],"r"); // Abre el archivo que se ejecutó por terminal 
-		if(input != NULL) {// Verifica si el archivo no puede ser abierto
-			obtenerTokens(input);
+// Functions
+void getTokens(FILE* input) {
+	while(1) { //the shell must be waitting for an input 
+		if(input == stdin) { // interactive mode
+			printf("wish> "); //the shell prompt
 		}
-		else {
-			error();
-			exit(FINAL_ERRONEO);
-		}
-	}
-	else { // Si es error
-    error();	
-    exit(FINAL_ERRONEO);
-	}
-	return 0;
-} // Final del main()
-
-void obtenerTokens(FILE* input) {
-	while(1) { // Para esperar por un input en el terminal 
-		if(input == stdin) // Modo interactivo
-			printf("wish> "); // Imprime el promt del terminal
-		int temp = indice;
-		indice =0 ;
+		int temp = indx;
+		indx =0 ;
 		char *original;
 		size_t len = 0 ;
-		if(getline(&original,&len,input)==EOF) {  
-			exit(FINAL_EXITOSO);
+		if(getline(&original,&len,input)==EOF) { // reda utill end of file 
+			exit(SUCCESSFUL_END);
 		}
 		unsigned long long original_size = strlen(original); 
 		char *modified = (char *)malloc(sizeof(char)*original_size*6);
 		int shift  =0;
-		if(!(strcmp(original,"&\n"))) { // Se salta el '\n'
+		if(!(strcmp(original,"&\n"))) { //skip this input
 			continue;
 		}
 		for(int i = 0 ; i<original_size ; i++ ) {
@@ -75,143 +60,31 @@ void obtenerTokens(FILE* input) {
 		char *token;
 		while( (token = strsep(&modified," \n")) != NULL ) { //remove white spaces and newlines
 			if(!strcmp(token,"&")) { // check for multiple commands
-				tokens[indice] = NULL ;
-				indice++;
+				tokens[indx] = NULL ;
+				indx++;
 			}
 			if(memcmp(token,"\0",1)) { //not equal  (not a null input)
-				tokens[indice] = token;
-				indice++;
+				tokens[indx] = token;
+				indx++;
 			}
 		}
-		for(int i = indice ; i < temp ; i++) { // removing executed commands 
+		for(int i = indx ; i < temp ; i++) { // removing executed commands 
 			tokens[i]=NULL;
 		}
-		ejecutarComando(); // execute the token commands 
+		executeCommand(); // execute the token commands 
 		free(modified);
-		for (int x = 0 ; x<cantHijos ; x++ ) { // wait for the child processes
+		for (int x = 0 ; x < countChilds ; x++ ) { // wait for the child processes
 			int stat;
-			waitpid(hijos[x],&stat,0);
+			waitpid(childs[x],&stat,0);
 		}
 	}
 }
 
-/*
-void ejecutarComando() {
-    for (int i = 0; i < indice; i++) {
-        // Check if the token is a file path
-        struct stat file_stat;
-        if (stat(tokens[i], &file_stat) == 0) {
-            if (file_stat.st_mode & S_IXUSR) {
-                // File is executable, execute it
-                int pid = fork();
-                if (pid == -1) {
-                    // Error handling
-                    error();
-                    exit(FINAL_ERRONEO);
-                } else if (pid == 0) {
-                    // Child process
-                    execv(tokens[i], tokens + i);
-                    // If execv returns, it means execution failed
-                    error();
-                    exit(FINAL_ERRONEO);
-                } else {
-                    // Parent process
-                    // Wait for child to finish
-                    int status;
-                    waitpid(pid, &status, 0);
-                    // Move to next token
-                    while (tokens[i] != NULL) {
-                        i++;
-                    }
-                    i++;
-                }
-            } else {
-                // File is not executable, continue with standard command execution
-                // (Your existing logic here)
-				for(int i =0 ; i<indice ;i++) { // itrate the tokens 
-					if (!strcmp(tokens[i], "exit")) { // special command 
-						if(tokens[i+1] == NULL) { // for a test case :"
-							exit(FINAL_EXITOSO);
-						}
-						else {
-							i++;
-							error();
-						}
-					}
-					else if(!strcmp(tokens[i],"cd")) { // special command
-						if(chdir(tokens[++i])) { // changing the directory 
-							error();
-						}
-						while (tokens[i] != NULL) { // moving i to the next token command
-							i++;
-						}
-						i++;
-
-					}
-					else if(!strcmp(tokens[i],"path")) { // special command
-						cantPaths=0;
-						for(int j=1 ;j<indice;j++) {
-							char *temp = realpath(tokens[j],NULL); // check for the path 
-							if (temp != NULL) {
-								paths[j-1] = temp;
-							}
-							else {
-								error();
-								cantPaths++;
-							}
-						}
-						i+=cantPaths;
-					}
-					else {
-						int pid = fork();
-						hijos[cantHijos++]=pid ;
-						if(pid==-1){
-							error();
-							exit(FINAL_ERRONEO);
-						}
-						if(pid==0){ 
-							//child 
-							if(comandoTieneRedireccion(tokens, i) != -1) { // check for '>'
-								for(int j =0 ;j<cantPaths;j++) {
-									char *exe = malloc(sizeof(char)*MAX_PATH); 
-									strcpy(exe,paths[j]);
-									strcat(exe,"/");
-									strcat(exe,tokens[i]); // get the full path of the executable 
-									if(!access(exe,X_OK)) {
-										execv(exe,tokens+i); // execute the program with its arguments utill find NULL 
-									}
-								}
-								error();
-								exit(FINAL_ERRONEO);
-							}
-						}
-						else {
-							//parent
-							while (tokens[i] != NULL) { // moving i to the next token command
-								i++;
-							}
-							i++;
-							if (i < indice) {
-								continue;
-							}
-						}
-					}
-				}
-            }
-        } else {
-            // Handle errors if stat fails
-            error();
-        }
-    }
-}
-*/
-
-
-void ejecutarComando() {
-	for(int i =0 ; i<indice ;i++) { // itrate the tokens 
+void executeCommand() {
+	for(int i =0 ; i<indx ;i++) { // iterate the tokens 
 		if (!strcmp(tokens[i], "exit")) { // special command 
 			if(tokens[i+1] == NULL) { // for a test case :"
-				exit(FINAL_EXITOSO);
+				exit(SUCCESSFUL_END);
 			}
 			else {
 				i++;
@@ -226,43 +99,41 @@ void ejecutarComando() {
 				i++;
 			}
 			i++;
-
 		}
 		else if(!strcmp(tokens[i],"path")) { // special command
-			cantPaths=0;
-			for(int j=1 ;j<indice;j++) {
-				char *temp = realpath(tokens[j],NULL); // check for the path 
-				if (temp != NULL) {
-					paths[j-1] = temp;
-				}
-				else { 
-					error();
-				}
-				cantPaths++;
+			countPaths=0;
+			for(int j=1; j < indx; j++) {
+				if (isValidPath(tokens[j])) { // Verificar si la ruta es válida
+                    paths[j - 1] = tokens[j];
+                }
+                else {
+                    error();
+                }
+			countPaths++;
 			}
-			i+=cantPaths;
+			i+=countPaths;
 		}
 		else {
 			int pid = fork();
-			hijos[cantHijos++]=pid ;
-			if(pid==-1) { 
+			childs[countChilds++]=pid ;
+			if(pid==-1) {
 				error();
-				exit(FINAL_ERRONEO);
+				exit(FAILURE_END);
 			}
-			if(pid==0){
+			if(pid==0) {
 				//child 
-				if(comandoTieneRedireccion(tokens, i) != -1) { // check for '>'
-					for(int j =0 ;j<cantPaths;j++) {
-						char *exe = malloc(sizeof(char)*MAX_PATH); 
-						strcpy(exe,paths[j]);
-						strcat(exe,"/");
-						strcat(exe,tokens[i]); // get the full path of the executable 
-						if(!access(exe,X_OK)) {
-							execv(exe,tokens+i); // execute the program with its arguments utill find NULL 
-						}
+				if(commandHasRedirection(tokens, i) != -1) { // check for '>'
+				for(int j =0 ;j<countPaths;j++) {
+					char *exe = malloc(sizeof(char)*MAX_PATH); 
+					strcpy(exe,paths[j]);
+					strcat(exe,"/");
+					strcat(exe,tokens[i]); // get the full path of the executable 
+					if(!access(exe,X_OK)) {
+						execv(exe,tokens+i); // execute the program with its arguments utill find NULL 
 					}
-					error();
-					exit(FINAL_ERRONEO);
+				}
+				error();
+				exit(FAILURE_END);
 				}
 			}
 			else {
@@ -271,7 +142,7 @@ void ejecutarComando() {
 					i++;
 				}
 				i++;
-				if (i < indice) {
+				if (i < indx) {
 					continue;
 				}
 			}
@@ -279,8 +150,7 @@ void ejecutarComando() {
 	}
 }
 
-
-int comandoTieneRedireccion(char *arr[] , int start) {
+int commandHasRedirection(char *arr[] , int start) {
 	for(int i = start ; arr[i] != NULL ; i++) {
 		if(!strcmp(arr[i],">") && i != start) { // no command before '>'
 			arr[i]=NULL;
@@ -301,6 +171,32 @@ int comandoTieneRedireccion(char *arr[] , int start) {
 }
 
 void error() {
-	char mensaje_error[30] = "An error has occurred\n";
-	write(STDERR_FILENO, mensaje_error, strlen(mensaje_error));
+	char error_message[30] = "An error has occurred\n";
+	write(STDERR_FILENO, error_message, strlen(error_message));
 }
+
+int isValidPath(const char *path) {
+  return access(path, X_OK) == 0;
+}
+
+// Main function
+int main (int argc, char *argv[]) {
+	if(argc == 1) { //interactive mode
+		getTokens(stdin); // the input file here is the stdin (the commands that user types)
+	}
+	else if (argc == 2) { //batch mode
+		FILE *input = fopen(argv[1],"r"); // the file that the shell was executed with 
+		if(input != NULL) { // check if the file cannot be opened
+			getTokens(input);
+		}
+		else {
+			error();
+			exit(FAILURE_END);
+		}
+	}
+	else { //throw an error 
+    error();	
+    exit(FAILURE_END);
+	}
+	return 0;
+} // end of main 
